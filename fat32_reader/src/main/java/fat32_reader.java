@@ -1,4 +1,3 @@
-
 import java.io.*;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -18,14 +17,29 @@ public class fat32_reader {
         //reader.read(data);
         int num =0;
         int j = 0;
-        for(int i = 0; i< data.length; i++){
-           String fullHex = (Integer.toHexString(reader.read()));
-         //   byte fullHex = ((Integer)(reader.read())).byteValue();
-            System.out.println(fullHex);
-            byte firstByte = Byte.parseByte(fullHex.substring(0,2), 16);
-            byte secondByte = Byte.parseByte(fullHex.substring(2,4), 16);
+        for(int i = 0; i< databyte.length; i++){
+            int twoBytes = reader.read();
+            System.out.println(twoBytes);
+            int firstInt = ((twoBytes&0x0000FF00)/0xFF);
+            int secondInt = ((twoBytes&0x000000FF));
+            byte firstByte =  (byte)firstInt;
+            byte secondByte =  (byte)secondInt;
             System.out.println(firstByte);
             System.out.println(secondByte);
+            System.out.println();
+            databyte[i] = (byte)((twoBytes&0x0000FF00)*0xFFFF);
+            // System.out.println(databyte[i]);
+            i++;
+            databyte[i] = (byte)((twoBytes&0x000000FF)*0xFFFFFF);
+            //  System.out.println(databyte[i]);
+
+            //  String fullHex = (Integer.toHexString(reader.read()));
+            //   byte fullHex = ((Integer)(reader.read())).byteValue();
+            //     System.out.println(fullHex);
+            //     byte firstByte = Byte.parseByte(fullHex.substring(0,2), 16);
+            //     byte secondByte = Byte.parseByte(fullHex.substring(2,4), 16);
+            //    System.out.println(firstByte);
+            //   System.out.println(secondByte);
             /*num = reader.read();
             System.out.println(num);
             databyte[j] = (byte)(num&0xFF00);
@@ -45,7 +59,7 @@ public class fat32_reader {
 //                System.out.print("\n");
 //            }
 //        }
-       // byte[] dataByte = new String(data).getBytes(StandardCharsets.UTF_8);
+        // byte[] dataByte = new String(data).getBytes(StandardCharsets.UTF_8);
       /*  for (int i = 0; i < data.length; i++){
             //System.out.print(data[i]);
             System.out.print(dataByte[i] + " ");
