@@ -6,83 +6,53 @@ import java.util.*;
 
 
 public class fat32_reader {
-
+    static int BytesPerSec;
+    static int SecPerClus;
+    static int RsvdSecCnt;
+    static int NumFATS;
+    static int FATSz32;
     public static void main(String[] args) throws IOException {
         File file = new File("fat32.img");
         Reader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_16);
-        //String image = args[0];
-        //System.out.println(Integer.toHexString(reader.read()));
-        char[] data = new char[512];
-        byte[] databyte = new byte [1028];
-        //reader.read(data);
-        int num =0;
-        int j = 0;
-        for(int i = 0; i< databyte.length; i++){
+
+        byte[] dataByte = new byte [512];
+
+        for(int i = 0; i< dataByte.length; i+=2){
             int twoBytes = reader.read();
-            System.out.println(twoBytes);
+            //  System.out.println(twoBytes);
             int firstInt = ((twoBytes&0x0000FF00)/0xFF);
             int secondInt = ((twoBytes&0x000000FF));
             byte firstByte =  (byte)firstInt;
             byte secondByte =  (byte)secondInt;
-            System.out.println(firstByte);
-            System.out.println(secondByte);
-            System.out.println();
-            databyte[i] = (byte)((twoBytes&0x0000FF00)*0xFFFF);
-            // System.out.println(databyte[i]);
-            i++;
-            databyte[i] = (byte)((twoBytes&0x000000FF)*0xFFFFFF);
-            //  System.out.println(databyte[i]);
-
-            //  String fullHex = (Integer.toHexString(reader.read()));
-            //   byte fullHex = ((Integer)(reader.read())).byteValue();
-            //     System.out.println(fullHex);
-            //     byte firstByte = Byte.parseByte(fullHex.substring(0,2), 16);
-            //     byte secondByte = Byte.parseByte(fullHex.substring(2,4), 16);
-            //    System.out.println(firstByte);
-            //   System.out.println(secondByte);
-            /*num = reader.read();
-            System.out.println(num);
-            databyte[j] = (byte)(num&0xFF00);
-            databyte[j+1] = (byte)((num&0x00FF)*0xFF);
-            System.out.println(databyte[j]);
-            System.out.println(databyte[j+1]);
-            j++;*/
-
+            dataByte[i] = firstByte;
+            dataByte[i+1] = secondByte;
         }
-//        for (int i = 1; i <= data.length; i++){
-//            System.out.print(data[i]);
-//            //reader.read();
-//            if (i % 4 == 0){
-//                System.out.print("|");
-//            }
-//            if (i % 16 == 0){
-//                System.out.print("\n");
-//            }
-//        }
-        // byte[] dataByte = new String(data).getBytes(StandardCharsets.UTF_8);
-      /*  for (int i = 0; i < data.length; i++){
-            //System.out.print(data[i]);
-            System.out.print(dataByte[i] + " ");
-            if ((i+1) % 4 == 0){
-                System.out.print("|");
-            }
-            if ((i+1) % 16 == 0){
-                System.out.print("\n");
-            }
-        }*/
+        BytesPerSec = endianConverter(dataByte, 11, 2);
+        SecPerClus = endianConverter(dataByte, 13, 1);
+        RsvdSecCnt = endianConverter(dataByte, 14, 2);
+        NumFATS = endianConverter(dataByte, 16, 1);
+        FATSz32 = endianConverter(dataByte, 36, 4);
 
-      /*  int i = 0;
-        for(char c: data){
-            databyte[i] = (byte)(c&0xFF00);
-            databyte[i+1] = (byte)((c&0x00FF)*0xFF);
-            i= i+2;
-            System.out.println(databyte[i]);
-        }*/
-        ByteOrder byteOrder = ByteOrder.nativeOrder();
+        System.out.println("bps "+ BytesPerSec);
+        System.out.println("sec "+ SecPerClus);
+        System.out.println("rsvd "+ RsvdSecCnt);
+        System.out.println("num "+ NumFATS);
+        System.out.println("fat "+ FATSz32);
+        for(int i = 0; i< dataByte.length; i++){
+            //     System.out.println(dataByte[i]);
+        }
 
-        System.out.println(byteOrder);
+    }
+    private static int endianConverter(byte[] bytes, int offSet, int amountOfBytes){
+        int val = 0;
+        int lastByte = offSet+amountOfBytes-1;
+        // val = val & bytes[lastByte];
+        System.out.println("start for");
+        for(int i = lastByte; i>=offSet; i--){
+            val = val << 8;
+            val = val | (bytes[i]&0x000000FF);
+        }
 
-
-
+        return val;
     }
 }
