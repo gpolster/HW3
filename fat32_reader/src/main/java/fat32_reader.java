@@ -13,14 +13,15 @@ public class fat32_reader {
     static int FATSz32;
     static int RootClus;
     static byte[] fat;
+    static LinkedList<Integer> listOfPastClusters;
     static List<Integer> currentClusters = new LinkedList<Integer>();
     public static void main(String[] args) throws IOException {
         File file = new File("newlfat32.img");
         Reader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_16);
 
         byte[] dataByte = new byte [512];
-
-
+        listOfPastClusters = new LinkedList<Integer>();
+        listOfPastClusters.add(2);//root is at cluster 2
         for(int i = 0; i< dataByte.length; i+=2){
             int twoBytes = reader.read();
             //  System.out.println(twoBytes);
@@ -72,6 +73,10 @@ public class fat32_reader {
             cd("DIr", fat32);
             cd("A", fat32);
             cd("SpeC ", fat32);
+            cd("..", fat32);
+            cd("..", fat32);
+            cd("A", fat32);
+
         }
         catch(IOException e){
             System.out.println("sad");
@@ -141,9 +146,29 @@ public class fat32_reader {
                 System.out.println("fb "+ flagByte);
                 dirFlag = flagByte&dirFlag;
                 System.out.println("sec " +dirFlag);
+                if(dirName.equals("..")){
+                    if(listOfPastClusters.size()>1){
+                        listOfPastClusters.remove();
+                        getClusters(listOfPastClusters.getLast());
+                    }
+                    else{
+                        System.out.println("Error: Can not leave root");
+                    }
+                    breakAgain = true;
+                    break;
+                }
+                if(dirName.equals("")){
+                    listOfPastClusters = new LinkedList<Integer>();
+                    listOfPastClusters.add(2);
+                    getClusters(2);
+                    breakAgain = true;
+                    break;
+                }
                 if(shortName.equals(dirName)&&dirFlag==0b00010000){
                     //change into this directory.
+                    //  currentAbsolutePath.add(dirName);
                     int nextFatEntry = getNextEntry(fat32);
+                    listOfPastClusters.add(nextFatEntry);
                     getClusters(nextFatEntry);//this changes the currentClusters
                     breakAgain = true;
                     break;
