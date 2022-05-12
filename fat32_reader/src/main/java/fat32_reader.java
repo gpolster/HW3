@@ -15,8 +15,9 @@ public class fat32_reader {
     static byte[] fat;
     static LinkedList<Integer> listOfPastClusters;
     static List<Integer> currentClusters = new LinkedList<Integer>();
+    static LinkedList<String> path = new LinkedList<>();
     public static void main(String[] args) throws IOException {
-        File file = new File("newlfat32.img");
+        File file = new File(args[0]);
         Reader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_16);
 
         byte[] dataByte = new byte [512];
@@ -40,57 +41,121 @@ public class fat32_reader {
         RootClus = endianConverter(dataByte, 0x2c, 4);//shoulfd be 2
 
         fat = new byte[BytesPerSec*FATSz32];//512*1009
-        RandomAccessFile fat32 = new RandomAccessFile("newlfat32.img", "r");
+        RandomAccessFile fat32 = new RandomAccessFile(args[0], "r");
         fat32.skipBytes(BytesPerSec*RsvdSecCnt);
         fat32.read(fat);
-        System.out.println(fat);
-        System.out.println(fat[817*4]+" "+ fat[817*4+1]+" "+fat[817*4+2]+" "+fat[817*4+3]);
-        System.out.println(endianConverter(fat, 3268, 4));
-
         LinkedList<Integer> rootClusters = new LinkedList<Integer>();
-        System.out.println("RC"+RootClus);
         rootClusters.add(RootClus);
-
         int currentRootCluster = endianConverter(fat, RootClus*4, 4); //Rootclus = 2
-        System.out.println("rootcluster "+ currentRootCluster);
-        System.out.println(currentRootCluster);
         while(currentRootCluster<0x0FFFFFF8){
             rootClusters.add(currentRootCluster);
             currentRootCluster = endianConverter(fat, (currentRootCluster)*4,4);
             System.out.println(currentRootCluster);
         }
         currentClusters.addAll(rootClusters);
-
-
-
-
         fat32.skipBytes(BytesPerSec*(RsvdSecCnt));//skipping up to the first fat
-
         fat32.skipBytes(BytesPerSec*FATSz32*(NumFATS));//skipping to start of data region
         // fat32.skipBytes(BytesPerSec*2); //skip to start of root
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("/] ");
+        while(scanner.hasNextLine()){
 
-        try{
-            cd("DIr", fat32);
-            cd("A", fat32);
-            cd("SpeC ", fat32);
-            cd("..", fat32);
-            cd("..", fat32);
-            cd("A", fat32);
+            switch (scanner.next()){
+                case("stop"):
+                    System.exit(0);
+                    break;
+                case ("info"):
+                    info();
+                    break;
+                case ("cd"):
+                    cd(scanner.next(),fat32);
+                    break;
+                case ("ls"):
+                    ls(scanner.next(),fat32);
+                    break;
+                case("stat"):
+                    stat(scanner.next(),fat32);
+                    break;
+                case("size"):
+                    size(scanner.next(),fat32);
+                    break;
+                case("read"):
+                    read(scanner.next(),scanner.next(),scanner.next(),fat32);
+                    break;
+            }
+            System.out.println("\n");
+            System.out.print("/] " + getDir(path.getLast()) + " ");
+        }
 
-        }
-        catch(IOException e){
-            System.out.println("sad");
-        }
-        fat32.skipBytes(10);
-        System.out.println();
-        fat32.skipBytes(18);
-        System.out.print(fat32.readUnsignedByte()+" ");
-        System.out.print(fat32.readUnsignedByte()+" ");
-        System.out.print(fat32.readUnsignedByte()+" ");
-        System.out.print(fat32.readUnsignedByte()+" ");
 
 
     }
+
+    private static void ls(String dirName, RandomAccessFile fat32)throws IOException{
+        if(dirName.contains("/")) cd(dirName, fat32, true);
+        else {
+            cd(dirName, fat32);
+        }
+        for(Integer cluster: currentClusters){
+            fat32.seek((long)(BytesPerSec*RsvdSecCnt)+(long)(BytesPerSec*FATSz32*(NumFATS)));//Go to start of data region
+            fat32.skipBytes((cluster-2)*512);//skip to the cluster we want to read
+            for(int i = 0; i<BytesPerSec/32; i++){//look at all 16 entries
+                String shortName = "";
+                for(int j = 0; j<11; j++){
+                    shortName = shortName+((char)fat32.readUnsignedByte());
+                }
+                int totalVal = 0;
+                for(int g = 0; g< 11; g++){
+                    totalVal = totalVal+((int)shortName.charAt(g));
+                }
+                if(totalVal!=0){
+                    System.out.print(shortName+"    ");
+
+                }
+                fat32.skipBytes(21);//switchedby a bit
+            }
+        }
+    }
+
+    private static void stat(String name, RandomAccessFile fat32) {
+    }
+
+    private static void size(String fileName, RandomAccessFile fat32)throws IOException{
+        int lastSlash = 0;
+        if(fileName.contains("/")){
+            lastSlash = fileName.lastIndexOf("/");
+            cd(fileName.substring(0, lastSlash-1), fat32, true);
+            fileName = fileName.substring(lastSlash+1);
+        }
+
+        for(Integer cluster: currentClusters){
+            fat32.seek((long)(BytesPerSec*RsvdSecCnt)+(long)(BytesPerSec*FATSz32*(NumFATS)));//Go to start of data region
+            fat32.skipBytes((cluster-2)*512);//skip to the cluster we want to read
+            for(int i = 0; i<BytesPerSec/32; i++){//look at all 16 entries
+                String shortName = "";
+                for(int j = 0; j<11; j++){
+                    shortName = shortName+((char)fat32.readUnsignedByte());
+                }
+                if(shortName.equals(fileName)){
+
+                }
+                int totalVal = 0;
+                for(int g = 0; g< 11; g++){
+                    totalVal = totalVal+((int)shortName.charAt(g));
+                }
+                if(totalVal!=0){
+                    System.out.print(shortName+"    ");
+
+                }
+                fat32.skipBytes(21);//switched by a bit
+            }
+        }
+
+    }
+
+    private static void read(String file_name, String offset, String numbytes, RandomAccessFile fat32) {
+    }
+
     private static int getNextEntry(RandomAccessFile fat32) throws IOException {
         System.out.println("Yayyyyy");
         fat32.skipBytes(8);
@@ -127,7 +192,14 @@ public class fat32_reader {
         currentClusters = clusters;
         return clusters;
     }
+    private static void cd(String absPath, RandomAccessFile fat32, boolean path) throws IOException{
+        String[] dirs = absPath.split("/");
+        for(int i = 0; i<dirs.length; i++){
+            cd(dirs[i],fat32);
+        }
+    }
     private static void cd(String dirName, RandomAccessFile fat32)throws IOException{
+        if(dirName.contains("/")) cd(dirName, fat32, true);
         dirName = getShortName(dirName);
         boolean breakAgain = false;
         for(Integer cluster: currentClusters){
@@ -146,27 +218,32 @@ public class fat32_reader {
                 System.out.println("fb "+ flagByte);
                 dirFlag = flagByte&dirFlag;
                 System.out.println("sec " +dirFlag);
-                if(dirName.equals("..")){
-                    if(listOfPastClusters.size()>1){
-                        listOfPastClusters.remove();
-                        getClusters(listOfPastClusters.getLast());
-                    }
-                    else{
-                        System.out.println("Error: Can not leave root");
-                    }
-                    breakAgain = true;
-                    break;
-                }
-                if(dirName.equals("")){
-                    listOfPastClusters = new LinkedList<Integer>();
-                    listOfPastClusters.add(2);
-                    getClusters(2);
-                    breakAgain = true;
-                    break;
-                }
+//                if(dirName.equals(getShortName(".."))){
+//                    System.out.println("removing last = "+ path.removeLast());
+//                    if(listOfPastClusters.size()>1){
+//
+//                        listOfPastClusters.remove();
+//                        getClusters(listOfPastClusters.getLast());
+//                    }
+//                    else{
+//                        System.out.println("Error: Can not leave root");
+//                    }
+//                    breakAgain = true;
+//                    break;
+//                }
+//                else if(dirName.equals("")){
+//                    path = new LinkedList<>();
+//                    listOfPastClusters = new LinkedList<Integer>();
+//                    listOfPastClusters.add(2);
+//                    getClusters(2);
+//                    breakAgain = true;
+//                    break;
+//                }
                 if(shortName.equals(dirName)&&dirFlag==0b00010000){
+                    System.out.println("baaaaaaaaad");
                     //change into this directory.
                     //  currentAbsolutePath.add(dirName);
+                    path.addLast(dirName);
                     int nextFatEntry = getNextEntry(fat32);
                     listOfPastClusters.add(nextFatEntry);
                     getClusters(nextFatEntry);//this changes the currentClusters
@@ -187,6 +264,16 @@ public class fat32_reader {
         sBuilder.append(" ".repeat(Math.max(0, 11 - sBuilder.length())));
         s = sBuilder.toString();
         return s;
+    }
+    private static String getDir(String s){
+        char [] letters = s.toCharArray();
+        StringBuilder stringBuilder = new StringBuilder();
+        int i = 0;
+        while(' ' !=(letters[i])){
+            stringBuilder.append(letters[i]);
+            i++;
+        }
+        return stringBuilder.toString();
     }
     private static int endianConverter(byte[] bytes, int offSet, int amountOfBytes){
         int val = 0;
