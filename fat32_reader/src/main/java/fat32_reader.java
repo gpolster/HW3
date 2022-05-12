@@ -16,10 +16,11 @@ public class fat32_reader {
     static LinkedList<Integer> listOfPastClusters;
     static List<Integer> currentClusters = new LinkedList<Integer>();
     static LinkedList<String> path = new LinkedList<>();
+
     public static void main(String[] args) throws IOException {
         File file = new File(args[0]);
         Reader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_16);
-
+        path.add("");
         byte[] dataByte = new byte [512];
         listOfPastClusters = new LinkedList<Integer>();
         listOfPastClusters.add(2);//root is at cluster 2
@@ -119,34 +120,54 @@ public class fat32_reader {
 
     private static void stat(String name, RandomAccessFile fat32) {
     }
-
+    private static String getFile(String s){
+        char [] letters = s.toCharArray();
+        StringBuilder stringBuilder = new StringBuilder();
+        int i = 0;
+        while('.' !=(letters[i])){
+            stringBuilder.append(letters[i]);
+            i++;
+        }
+        for (int j = i; j < 7; j++){
+            stringBuilder.append(" ");
+        }
+        stringBuilder.append("TXT ");
+        return stringBuilder.toString().toUpperCase();
+    }
     private static void size(String fileName, RandomAccessFile fat32)throws IOException{
+
         int lastSlash = 0;
         if(fileName.contains("/")){
             lastSlash = fileName.lastIndexOf("/");
             cd(fileName.substring(0, lastSlash-1), fat32, true);
             fileName = fileName.substring(lastSlash+1);
         }
-
+        fileName = getFile(fileName);
+        System.out.println("FN:"+fileName);
+        //    fileName = getShortName(fileName);
         for(Integer cluster: currentClusters){
             fat32.seek((long)(BytesPerSec*RsvdSecCnt)+(long)(BytesPerSec*FATSz32*(NumFATS)));//Go to start of data region
             fat32.skipBytes((cluster-2)*512);//skip to the cluster we want to read
+            boolean breakAgain = false;
             for(int i = 0; i<BytesPerSec/32; i++){//look at all 16 entries
                 String shortName = "";
                 for(int j = 0; j<11; j++){
                     shortName = shortName+((char)fat32.readUnsignedByte());
                 }
-                if(shortName.equals(fileName)){
-
+                int dirFlag =  0b00010000;
+                System.out.println(shortName);
+                byte flagByte = (fat32.readByte());
+                dirFlag = flagByte&dirFlag;
+                if(shortName.equals(fileName)/&&dirFlag!=0b00010000/){
+                    System.out.println("found it");
+                    fat32.skipBytes(17);//switched by a bit
+                    byte[] size = new byte[4];
+                    fat32.read(size);
+                    System.out.println(endianConverter(size, 0, 4));
+                    breakAgain = true;
+                    break;
                 }
-                int totalVal = 0;
-                for(int g = 0; g< 11; g++){
-                    totalVal = totalVal+((int)shortName.charAt(g));
-                }
-                if(totalVal!=0){
-                    System.out.print(shortName+"    ");
-
-                }
+                if(breakAgain) break;
                 fat32.skipBytes(21);//switched by a bit
             }
         }
@@ -266,6 +287,7 @@ public class fat32_reader {
         return s;
     }
     private static String getDir(String s){
+        if(s.equals(""))return "";
         char [] letters = s.toCharArray();
         StringBuilder stringBuilder = new StringBuilder();
         int i = 0;
