@@ -58,7 +58,6 @@ public class fat32_reader {
         fat32.skipBytes(BytesPerSec*FATSz32*(NumFATS));//skipping to start of data region
         // fat32.skipBytes(BytesPerSec*2); //skip to start of root
         Scanner scanner = new Scanner(System.in);
-        System.out.println(getFile("info.txt"));
         System.out.print("/] ");
         while(scanner.hasNextLine()){
 
@@ -125,10 +124,14 @@ public class fat32_reader {
         char [] letters = s.toCharArray();
         StringBuilder stringBuilder = new StringBuilder();
         int i = 0;
-        while('.' !=(letters[i])){
+        while(i<letters.length&&'.' !=(letters[i])){
             stringBuilder.append(letters[i]);
             i++;
         }
+        if(i== letters.length){
+            return getShortName(s);
+        }
+
         for (int j = i; j < 8; j++){
             stringBuilder.append(" ");
         }
@@ -139,8 +142,9 @@ public class fat32_reader {
         return stringBuilder.toString().toUpperCase();
     }
     private static void size(String fileName, RandomAccessFile fat32)throws IOException{
-
+        String ogName = fileName;
         int lastSlash = 0;
+        boolean thereIsError = true;
         if(fileName.contains("/")){
             lastSlash = fileName.lastIndexOf("/");
             cd(fileName.substring(0, lastSlash-1), fat32, true);
@@ -165,16 +169,20 @@ public class fat32_reader {
 
                 if(shortName.toUpperCase().equals(fileName)&&dirFlag!=0b00010000){
                     System.out.println("found it");
+                    thereIsError = false;
                     fat32.skipBytes(16);//switched by a bit
                     byte[] size = new byte[4];
                     fat32.read(size);
-                    System.out.println(endianConverter(size, 0, 4));
+                    System.out.println("Size of "+ogName+" is "+endianConverter(size, 0, 4)+" Bytes");
                     breakAgain = true;
                     break;
                 }
                 if(breakAgain) break;
                 fat32.skipBytes(20);//switched by a bit
             }
+        }
+        if(thereIsError){
+            System.out.println("Error: "+ogName+" is not a file");
         }
 
     }
