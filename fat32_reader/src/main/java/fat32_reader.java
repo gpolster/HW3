@@ -58,6 +58,7 @@ public class fat32_reader {
         fat32.skipBytes(BytesPerSec*FATSz32*(NumFATS));//skipping to start of data region
         // fat32.skipBytes(BytesPerSec*2); //skip to start of root
         Scanner scanner = new Scanner(System.in);
+        System.out.println(getFile("info.txt"));
         System.out.print("/] ");
         while(scanner.hasNextLine()){
 
@@ -128,10 +129,13 @@ public class fat32_reader {
             stringBuilder.append(letters[i]);
             i++;
         }
-        for (int j = i; j < 7; j++){
+        for (int j = i; j < 8; j++){
             stringBuilder.append(" ");
         }
-        stringBuilder.append("TXT ");
+        i++;
+        stringBuilder.append(letters[i]);
+        stringBuilder.append(letters[i+1]);
+        stringBuilder.append(letters[i+2]);
         return stringBuilder.toString().toUpperCase();
     }
     private static void size(String fileName, RandomAccessFile fat32)throws IOException{
@@ -155,12 +159,13 @@ public class fat32_reader {
                     shortName = shortName+((char)fat32.readUnsignedByte());
                 }
                 int dirFlag =  0b00010000;
-                System.out.println(shortName);
-                byte flagByte = (fat32.readByte());
+                System.out.println("SN: "+shortName);
+                byte flagByte = (fat32.readByte());//we are reading this byte
                 dirFlag = flagByte&dirFlag;
-                if(shortName.equals(fileName)/&&dirFlag!=0b00010000/){
+
+                if(shortName.toUpperCase().equals(fileName)&&dirFlag!=0b00010000){
                     System.out.println("found it");
-                    fat32.skipBytes(17);//switched by a bit
+                    fat32.skipBytes(16);//switched by a bit
                     byte[] size = new byte[4];
                     fat32.read(size);
                     System.out.println(endianConverter(size, 0, 4));
@@ -168,7 +173,7 @@ public class fat32_reader {
                     break;
                 }
                 if(breakAgain) break;
-                fat32.skipBytes(21);//switched by a bit
+                fat32.skipBytes(20);//switched by a bit
             }
         }
 
