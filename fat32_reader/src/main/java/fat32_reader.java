@@ -118,7 +118,127 @@ public class fat32_reader {
         }
     }
 
-    private static void stat(String name, RandomAccessFile fat32) {
+    private static void stat(String name, RandomAccessFile fat32) throws IOException {
+        String ogName = name;
+        int lastSlash = 0;
+        boolean thereIsError = true;
+        if(name.contains("/")){
+            lastSlash = name.lastIndexOf("/");
+            cd(name.substring(0, lastSlash), fat32, true);
+            name = name.substring(lastSlash+1);
+        }
+        boolean breakAgain = false;
+        name = getFile(name);
+        byte flagByte = 0;
+        int nextCluster = 0;
+        //    fileName = getShortName(fileName);
+        for(Integer cluster: currentClusters){
+            fat32.seek((long)(BytesPerSec*RsvdSecCnt)+(long)(BytesPerSec*FATSz32*(NumFATS)));//Go to start of data region
+            fat32.skipBytes((cluster-2)*512);//skip to the cluster we want to read
+            for(int i = 0; i<BytesPerSec/32; i++){//look at all 16 entries
+                String shortName = "";
+                for(int j = 0; j<11; j++){
+                    shortName = shortName+((char)fat32.readUnsignedByte());
+                }
+                int dirFlag =  0b00010000;
+                flagByte = (fat32.readByte());//we are reading this byte
+                dirFlag = flagByte&dirFlag;
+
+                if(shortName.toUpperCase().equals(name)&&dirFlag!=0b00010000){
+                    thereIsError = false;
+
+                    fat32.skipBytes(8);
+                    byte[] clusterBytesLE = new byte[4];
+                    clusterBytesLE[0] = fat32.readByte();
+                    clusterBytesLE[1] = fat32.readByte();
+                    byte temp0 = clusterBytesLE[0];
+                    byte temp1 = clusterBytesLE[1];
+                    fat32.skipBytes(4);
+                    clusterBytesLE[2] = fat32.readByte();
+                    clusterBytesLE[3] = fat32.readByte();
+                    clusterBytesLE[0]=clusterBytesLE[2];
+                    clusterBytesLE[1]=clusterBytesLE[3];
+                    clusterBytesLE[2]=temp0;
+                    clusterBytesLE[3]=temp1;
+
+                    nextCluster =  endianConverter(clusterBytesLE, 0, 4);
+
+                    //  fat32.skipBytes(16);//switched by a bit
+                    byte[] size = new byte[4];
+                    fat32.read(size);
+                    System.out.println("Size is "+endianConverter(size, 0, 4));
+                    breakAgain = true;
+                    break;
+                } else if(shortName.toUpperCase().equals(name)&&dirFlag == 0b00010000){
+                    thereIsError = false;
+                    fat32.skipBytes(8);
+                    byte[] clusterBytesLE = new byte[4];
+                    clusterBytesLE[0] = fat32.readByte();
+                    clusterBytesLE[1] = fat32.readByte();
+                    byte temp0 = clusterBytesLE[0];
+                    byte temp1 = clusterBytesLE[1];
+                    fat32.skipBytes(4);
+                    clusterBytesLE[2] = fat32.readByte();
+                    clusterBytesLE[3] = fat32.readByte();
+                    clusterBytesLE[0]=clusterBytesLE[2];
+                    clusterBytesLE[1]=clusterBytesLE[3];
+                    clusterBytesLE[2]=temp0;
+                    clusterBytesLE[3]=temp1;
+
+                    nextCluster =  endianConverter(clusterBytesLE, 0, 4);
+                    System.out.println("Size is 0");
+                    breakAgain = true;
+                    break;
+                }
+
+                fat32.skipBytes(20);//switched by a bit
+            }
+            if(breakAgain)
+                break;
+        }
+        if(thereIsError){
+            System.out.println("Error: file/directory does not exist");
+            return;
+        }
+        System.out.println("Attributes " + getAttributes(flagByte));
+        System.out.println("Next cluster number is 0x" + addZeros(Integer.toHexString(nextCluster)));
+    }
+    private static String addZeros(String s){
+        StringBuilder stringBuilder = new StringBuilder(s);
+        while (stringBuilder.length() != 4){
+            stringBuilder.append("0");
+        }
+        return stringBuilder.reverse().toString();
+    }
+    private static String getAttributes(byte b){
+        int mask =  0b1000000;
+        StringBuilder s = new StringBuilder();
+        for(int i = 6; i >= 0; i--){
+            if(mask == (mask&b)){
+                s.append(" ");
+                s.append(getAtr(i));
+            }
+            b= (byte) (b<<1);
+        }
+        return s.toString();
+
+    }
+    private static String getAtr(int i){
+        switch (i){
+            case(5):
+                return "ATTR_ARCHIVE";
+            case(4):
+                return "ATTR_DIRECTORY";
+            case(3):
+                return "ATTR_VOLUME ID";
+            case(2):
+                return "ATTR_SYSTEM";
+            case(1):
+                return "ATTR_HIDDEN";
+            case(0):
+                return "ATTR_READ-ONLY";
+        }
+        return i + "";
     }
     private static String getFile(String s){
         char [] letters = s.toCharArray();
@@ -141,22 +261,24 @@ public class fat32_reader {
         stringBuilder.append(letters[i+2]);
         return stringBuilder.toString().toUpperCase();
     }
-    private static void size(String fileName, RandomAccessFile fat32)throws IOException{
+    private static int size(String fileName, RandomAccessFile fat32)throws IOException{
         String ogName = fileName;
         int lastSlash = 0;
         boolean thereIsError = true;
         if(fileName.contains("/")){
             lastSlash = fileName.lastIndexOf("/");
-            cd(fileName.substring(0, lastSlash-1), fat32, true);
+            cd(fileName.substring(0, lastSlash), fat32);
             fileName = fileName.substring(lastSlash+1);
         }
         fileName = getFile(fileName);
         System.out.println("FN:"+fileName);
+        byte[] size= new byte[4];
         //    fileName = getShortName(fileName);
         for(Integer cluster: currentClusters){
             fat32.seek((long)(BytesPerSec*RsvdSecCnt)+(long)(BytesPerSec*FATSz32*(NumFATS)));//Go to start of data region
             fat32.skipBytes((cluster-2)*512);//skip to the cluster we want to read
             boolean breakAgain = false;
+
             for(int i = 0; i<BytesPerSec/32; i++){//look at all 16 entries
                 String shortName = "";
                 for(int j = 0; j<11; j++){
@@ -171,9 +293,10 @@ public class fat32_reader {
                     System.out.println("found it");
                     thereIsError = false;
                     fat32.skipBytes(16);//switched by a bit
-                    byte[] size = new byte[4];
+                    // size = new byte[4];
                     fat32.read(size);
                     System.out.println("Size of "+ogName+" is "+endianConverter(size, 0, 4)+" Bytes");
+
                     breakAgain = true;
                     break;
                 }
@@ -184,10 +307,119 @@ public class fat32_reader {
         if(thereIsError){
             System.out.println("Error: "+ogName+" is not a file");
         }
-
+        return endianConverter(size, 0, 4);
     }
 
-    private static void read(String file_name, String offset, String numbytes, RandomAccessFile fat32) {
+    private static void read(String fileName, String offset, String numBytes, RandomAccessFile fat32) throws IOException{
+        String ogName = fileName;
+        int lastSlash = 0;
+        boolean thereIsError = true;
+        if(fileName.contains("/")){
+            lastSlash = fileName.lastIndexOf("/");
+            //System.out.println("going: "+fileName.substring(0, lastSlash-1));
+            cd(fileName.substring(0, lastSlash), fat32);
+            fileName = fileName.substring(lastSlash+1);
+        }
+        fileName = getFile(fileName);
+
+        //System.out.println("FN:"+fileName);
+        if(isFile(fileName)){
+            for(Integer cluster: currentClusters){
+                fat32.seek((long)(BytesPerSec*RsvdSecCnt)+(long)(BytesPerSec*FATSz32*(NumFATS)));//Go to start of data region
+                fat32.skipBytes((cluster-2)*512);//skip to the cluster we want to read
+                boolean breakAgain = false;
+                for(int i = 0; i<BytesPerSec/32; i++){//look at all 16 entries
+                    String shortName = "";
+                    for(int j = 0; j<11; j++){
+                        shortName = shortName+((char)fat32.readUnsignedByte());
+                    }
+                    int dirFlag =  0b00010000;
+                    System.out.println("SN: "+shortName);
+                    byte flagByte = (fat32.readByte());//we are reading this byte
+                    dirFlag = flagByte&dirFlag;
+                    if(shortName.toUpperCase().equals(fileName)&&dirFlag!=0b00010000){
+                        System.out.println("found it: ");
+                        try{
+                            System.out.println("found the file");
+                            fat32.skipBytes(8);
+                            byte[] clusterBytesLE = new byte[4];
+                            clusterBytesLE[0] = fat32.readByte();
+                            clusterBytesLE[1] = fat32.readByte();
+                            byte temp0 = clusterBytesLE[0];
+                            byte temp1 = clusterBytesLE[1];
+                            fat32.skipBytes(4);
+                            clusterBytesLE[2] = fat32.readByte();
+                            clusterBytesLE[3] = fat32.readByte();
+                            clusterBytesLE[0]=clusterBytesLE[2];
+                            clusterBytesLE[1]=clusterBytesLE[3];
+                            clusterBytesLE[2]=temp0;
+                            clusterBytesLE[3]=temp1;
+                            int startPoint = endianConverter(clusterBytesLE, 0, 4);
+                            System.out.println("StartPoint "+ startPoint);
+                            read(startPoint, Integer.parseInt(offset), Integer.parseInt(numBytes), size(shortName, fat32), fat32);
+                        }
+                        catch(NumberFormatException e){
+                            System.out.println("Must be a number");
+                        }
+
+                        breakAgain = true;
+                        break;
+                    }
+                    if(breakAgain) break;
+                    fat32.skipBytes(20);//switched by a bit
+                }
+            }
+
+        }
+    }
+    private static void read(int startPoint, int offset, int numBytes, int size, RandomAccessFile fat32)throws IOException{
+        //  int startPoint = getNextEntry(fat32);
+
+        LinkedList<Integer> fatTrav = new LinkedList<Integer>();
+
+        System.out.println("SP " +startPoint);
+
+        int currentCluster = startPoint;
+        // fatTrav.add(startPoint);
+        while(currentCluster<0x0FFFFFF8){
+            fatTrav.add(currentCluster);
+            currentCluster = endianConverter(fat, (currentCluster)*4,4);
+            //    System.out.println("Next cluster "+currentCluster);
+        }
+
+        byte[] content = new byte[size+1];
+
+        byte c = 'a';
+        int index = 0;
+        for(Integer cluster: fatTrav){
+            fat32.seek((long)(BytesPerSec*RsvdSecCnt)+(long)(BytesPerSec*FATSz32*(NumFATS)));//Go to start of data region
+            fat32.skipBytes((cluster-2)*512);//skip to the cluster we want to read
+            for(int i = 0; i<BytesPerSec&&(index<size); i++){
+                c = fat32.readByte();
+
+                //  System.out.print((char)c);
+                content[index] = c;
+                index++;
+                //System.out.println("adding");
+
+
+            }
+
+        }
+        for(int i = offset; i<numBytes+offset&&i<size; i++){
+
+            if(content[i]<127&&content[i]>-1){
+                System.out.print((char)content[i]);
+            }
+            else{
+                System.out.print(String.format("%02X ", content[i]));//to hex
+            }
+        }
+
+    }
+    private static boolean isFile(String file){
+        if(file.toUpperCase().contains("PDF")||file.toUpperCase().contains("TXT")) return true;
+        return false;
     }
 
     private static int getNextEntry(RandomAccessFile fat32) throws IOException {
@@ -229,6 +461,7 @@ public class fat32_reader {
     private static void cd(String absPath, RandomAccessFile fat32, boolean path) throws IOException{
         String[] dirs = absPath.split("/");
         for(int i = 0; i<dirs.length; i++){
+            System.out.println("next: "+dirs[i]);
             cd(dirs[i],fat32);
         }
     }
